@@ -95,6 +95,9 @@ type Config struct {
 	// Routing controls credential selection behavior.
 	Routing RoutingConfig `yaml:"routing" json:"routing"`
 
+	// AffinityRewrite controls credential-scoped upstream session affinity headers.
+	AffinityRewrite AffinityRewriteConfig `yaml:"affinity-rewrite" json:"affinity-rewrite"`
+
 	// WebsocketAuth enables or disables authentication for the WebSocket API.
 	WebsocketAuth bool `yaml:"ws-auth" json:"ws-auth"`
 
@@ -170,6 +173,14 @@ type ClaudeHeaderDefaults struct {
 type CodexHeaderDefaults struct {
 	UserAgent    string `yaml:"user-agent" json:"user-agent"`
 	BetaFeatures string `yaml:"beta-features" json:"beta-features"`
+}
+
+// AffinityRewriteConfig configures upstream request header rewriting for OpenCode session affinity.
+type AffinityRewriteConfig struct {
+	Enabled bool     `yaml:"enabled" json:"enabled"`
+	Secret  string   `yaml:"secret" json:"secret"`
+	Prefix  string   `yaml:"prefix,omitempty" json:"prefix,omitempty"`
+	Headers []string `yaml:"headers,omitempty" json:"headers,omitempty"`
 }
 
 // TLSConfig holds HTTPS server settings.
@@ -725,6 +736,9 @@ func LoadConfigOptional(configFile string, optional bool) (*Config, error) {
 	// Sanitize Codex header defaults.
 	cfg.SanitizeCodexHeaderDefaults()
 
+	// Sanitize affinity rewrite settings.
+	cfg.SanitizeAffinityRewrite()
+
 	// Sanitize Claude header defaults.
 	cfg.SanitizeClaudeHeaderDefaults()
 
@@ -825,6 +839,16 @@ func (cfg *Config) SanitizeCodexHeaderDefaults() {
 	}
 	cfg.CodexHeaderDefaults.UserAgent = strings.TrimSpace(cfg.CodexHeaderDefaults.UserAgent)
 	cfg.CodexHeaderDefaults.BetaFeatures = strings.TrimSpace(cfg.CodexHeaderDefaults.BetaFeatures)
+}
+
+// SanitizeAffinityRewrite trims global session affinity rewrite settings.
+func (cfg *Config) SanitizeAffinityRewrite() {
+	if cfg == nil {
+		return
+	}
+	cfg.AffinityRewrite.Secret = strings.TrimSpace(cfg.AffinityRewrite.Secret)
+	cfg.AffinityRewrite.Prefix = strings.TrimSpace(cfg.AffinityRewrite.Prefix)
+	cfg.AffinityRewrite.Headers = NormalizeHeadersList(cfg.AffinityRewrite.Headers)
 }
 
 // SanitizeClaudeHeaderDefaults trims surrounding whitespace from the
@@ -1001,6 +1025,31 @@ func NormalizeHeaders(headers map[string]string) map[string]string {
 		return nil
 	}
 	return clean
+}
+
+// NormalizeHeadersList trims header names and removes duplicates case-insensitively.
+func NormalizeHeadersList(headers []string) []string {
+	if len(headers) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(headers))
+	out := make([]string, 0, len(headers))
+	for _, raw := range headers {
+		header := strings.TrimSpace(raw)
+		if header == "" {
+			continue
+		}
+		key := strings.ToLower(header)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, header)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // NormalizeExcludedModels trims, lowercases, and deduplicates model exclusion patterns.

@@ -126,6 +126,23 @@ routing:
   # How long session-to-auth bindings are retained. Default: 1h
   session-affinity-ttl: "1h"
 
+# Rewrite upstream OpenCode/OpenAI-compatible session affinity headers after a credential is selected.
+# Enable this when forwarding OpenCode traffic to shared upstream providers and you need each credential
+# to use a stable, credential-scoped affinity ID instead of the client-provided session ID.
+# The same original ID + selected credential always maps to the same rewritten value; different credentials
+# produce different values. Applies to HTTP, SSE, and Codex WebSocket upstream requests.
+affinity-rewrite:
+  enabled: false
+  # Required when enabled. Use a long random value and keep it stable across restarts.
+  secret: ""
+  # Optional prefix for rewritten IDs. Default: ses
+  prefix: "ses"
+  # Headers to inspect and rewrite. Defaults to these values when omitted.
+  headers:
+    - "x-session-affinity"
+    - "session-id"
+    - "session_id"
+
 # When true, enable authentication for the WebSocket API (/v1/ws).
 ws-auth: true
 

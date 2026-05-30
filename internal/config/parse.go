@@ -78,6 +78,7 @@ func ParseConfigBytes(data []byte) (*Config, error) {
 	cfg.SanitizeVertexCompatKeys()
 	cfg.SanitizeCodexKeys()
 	cfg.SanitizeCodexHeaderDefaults()
+	cfg.SanitizeAffinityRewrite()
 	cfg.SanitizeClaudeHeaderDefaults()
 	cfg.SanitizeClaudeKeys()
 	cfg.SanitizeOpenAICompatibility()
