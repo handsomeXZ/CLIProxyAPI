@@ -908,6 +908,7 @@ func applyCodexWebsocketHeaders(ctx context.Context, headers http.Header, auth *
 		attrs = auth.Attributes
 	}
 	util.ApplyCustomHeadersFromAttrs(&http.Request{Header: headers}, attrs)
+	helps.ApplyAffinityRewrite(headers, cfg, auth, ginHeaders)
 
 	return headers
 }

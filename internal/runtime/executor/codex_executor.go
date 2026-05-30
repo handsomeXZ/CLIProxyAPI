@@ -950,6 +950,7 @@ func applyCodexHeaders(r *http.Request, auth *cliproxyauth.Auth, token string, s
 		attrs = auth.Attributes
 	}
 	util.ApplyCustomHeadersFromAttrs(r, attrs)
+	helps.ApplyAffinityRewrite(r.Header, cfg, auth, ginHeaders)
 }
 
 func newCodexStatusErr(statusCode int, body []byte) statusErr {

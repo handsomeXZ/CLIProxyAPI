@@ -39,6 +39,38 @@ func TestBuildCodexWebsocketRequestBodyPreservesPreviousResponseID(t *testing.T)
 	}
 }
 
+func TestApplyCodexWebsocketHeadersRewritesAffinity(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ginCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ginCtx.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
+	ginCtx.Request.Header.Set("X-Session-Affinity", "session-1")
+	ctx := context.WithValue(context.Background(), "gin", ginCtx)
+
+	headers := http.Header{}
+	lowerSessionID := "session_id"
+	canonicalSessionID := "Session_id"
+	headers[lowerSessionID] = []string{"cache-1"}
+	headers = applyCodexWebsocketHeaders(ctx, headers, &cliproxyauth.Auth{ID: "auth-1"}, "sk-test", &config.Config{
+		AffinityRewrite: config.AffinityRewriteConfig{Enabled: true, Secret: "test-secret"},
+	})
+	rewritten := headers.Get("x-session-affinity")
+	if rewritten == "" {
+		t.Fatal("expected rewritten x-session-affinity")
+	}
+	if rewritten == "session-1" {
+		t.Fatal("expected x-session-affinity to be rewritten")
+	}
+	if got := headerValueCaseInsensitive(headers, lowerSessionID); got != rewritten {
+		t.Fatalf("Session_id = %q, want rewritten affinity %q", got, rewritten)
+	}
+	if _, ok := headers[lowerSessionID]; !ok {
+		t.Fatalf("expected lowercase session_id key to be preserved, got %#v", headers)
+	}
+	if _, ok := headers[canonicalSessionID]; ok {
+		t.Fatalf("expected canonical Session_id key to be absent, got %#v", headers)
+	}
+}
+
 func TestCodexWebsocketsExecutePreservesPreviousResponseIDUpstream(t *testing.T) {
 	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
 	capturedPayload := make(chan []byte, 1)
