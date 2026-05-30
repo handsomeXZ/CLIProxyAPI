@@ -106,6 +106,60 @@ func TestOpenAICompatExecutorPayloadOverrideWinsOverThinkingSuffix(t *testing.T)
 	}
 }
 
+func TestOpenAICompatExecutorRewritesAffinityHeader(t *testing.T) {
+	var gotAffinity string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAffinity = r.Header.Get("x-session-affinity")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"chatcmpl_1","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`))
+	}))
+	defer server.Close()
+
+	executor := NewOpenAICompatExecutor("openai-compatibility", &config.Config{
+		AffinityRewrite: config.AffinityRewriteConfig{Enabled: true, Secret: "test-secret"},
+	})
+	auth := &cliproxyauth.Auth{ID: "auth-1", Attributes: map[string]string{
+		"base_url": server.URL + "/v1",
+		"api_key":  "test",
+	}}
+	_, err := executor.Execute(context.Background(), auth, cliproxyexecutor.Request{
+		Model:   "custom-openai",
+		Payload: []byte(`{"model":"custom-openai","messages":[{"role":"user","content":"hi"}]}`),
+	}, cliproxyexecutor.Options{
+		SourceFormat: sdktranslator.FromString("openai"),
+		Headers:      http.Header{"X-Session-Affinity": []string{"session-1"}},
+	})
+	if err != nil {
+		t.Fatalf("Execute error: %v", err)
+	}
+	if gotAffinity == "" {
+		t.Fatal("expected rewritten affinity header")
+	}
+	if gotAffinity == "session-1" {
+		t.Fatal("expected affinity header to be rewritten")
+	}
+
+	var secondAffinity string
+	server.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		secondAffinity = r.Header.Get("x-session-affinity")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"chatcmpl_1","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`))
+	})
+	_, err = executor.Execute(context.Background(), auth, cliproxyexecutor.Request{
+		Model:   "custom-openai",
+		Payload: []byte(`{"model":"custom-openai","messages":[{"role":"user","content":"hi"}]}`),
+	}, cliproxyexecutor.Options{
+		SourceFormat: sdktranslator.FromString("openai"),
+		Headers:      http.Header{"X-Session-Affinity": []string{"session-1"}},
+	})
+	if err != nil {
+		t.Fatalf("second Execute error: %v", err)
+	}
+	if secondAffinity != gotAffinity {
+		t.Fatalf("affinity rewrite not stable: %q != %q", secondAffinity, gotAffinity)
+	}
+}
+
 func TestOpenAICompatExecutorImagesGenerationsPassthrough(t *testing.T) {
 	var gotPath string
 	var gotBody []byte
