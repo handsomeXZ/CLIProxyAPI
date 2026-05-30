@@ -7,6 +7,8 @@ import (
 
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
+	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 )
 
 var opencodeSessionIDPattern = regexp.MustCompile(`^ses_[0-9a-f]{12}[0-9A-Za-z]{14}$`)
@@ -37,6 +39,38 @@ func TestApplyAffinityRewriteUsesOpenCodeSessionShape(t *testing.T) {
 	if got := target.Get("x-session-affinity"); !opencodeSessionIDPattern.MatchString(got) {
 		t.Fatalf("rewritten affinity = %q, want OpenCode-like ses_<12hex><14base62>", got)
 	}
+}
+
+func TestApplyAffinityRewriteLogsOriginalAndRewrittenID(t *testing.T) {
+	previousLevel := log.GetLevel()
+	previousHooks := cloneLogHooks(log.StandardLogger().Hooks)
+	log.SetLevel(log.InfoLevel)
+	hook := test.NewLocal(log.StandardLogger())
+	t.Cleanup(func() {
+		hook.Reset()
+		log.StandardLogger().ReplaceHooks(previousHooks)
+		log.SetLevel(previousLevel)
+	})
+
+	cfg := &config.Config{AffinityRewrite: config.AffinityRewriteConfig{Enabled: true, Secret: "test-secret"}}
+	target := http.Header{}
+
+	ApplyAffinityRewrite(target, cfg, &cliproxyauth.Auth{ID: "auth-1"}, http.Header{"X-Session-Affinity": []string{"session-1"}})
+
+	rewritten := target.Get("x-session-affinity")
+	for _, entry := range hook.AllEntries() {
+		if entry.Level != log.InfoLevel || entry.Message != "affinity rewrite: session affinity id rewritten" {
+			continue
+		}
+		if entry.Data["original_id"] != "session-1" {
+			t.Fatalf("original_id = %v, want session-1", entry.Data["original_id"])
+		}
+		if entry.Data["rewritten_id"] != rewritten {
+			t.Fatalf("rewritten_id = %v, want %s", entry.Data["rewritten_id"], rewritten)
+		}
+		return
+	}
+	t.Fatalf("expected affinity rewrite log entry, got %#v", hook.AllEntries())
 }
 
 func TestApplyAffinityRewriteIsolatesCredentials(t *testing.T) {
@@ -106,4 +140,12 @@ func TestApplyAffinityRewriteDisabledWithoutSecret(t *testing.T) {
 	if target.Get("x-session-affinity") != "session-1" {
 		t.Fatalf("expected affinity to remain unchanged without secret, got %q", target.Get("x-session-affinity"))
 	}
+}
+
+func cloneLogHooks(hooks log.LevelHooks) log.LevelHooks {
+	clone := make(log.LevelHooks, len(hooks))
+	for level, levelHooks := range hooks {
+		clone[level] = append([]log.Hook(nil), levelHooks...)
+	}
+	return clone
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
+	log "github.com/sirupsen/logrus"
 )
 
 var defaultAffinityRewriteHeaders = []string{"x-session-affinity", "session-id", "session_id"}
@@ -33,10 +34,18 @@ func ApplyAffinityRewrite(headers http.Header, cfg *config.Config, auth *cliprox
 		return
 	}
 	replacement := affinityRewriteValue(secret, cfg.AffinityRewrite.Prefix, scope, original)
+	applied := false
 	for _, name := range names {
 		if hasHeaderValue(headers, name) || anySourceHasHeaderValue(sources, name) {
 			setAffinityHeader(headers, name, replacement, sources)
+			applied = true
 		}
+	}
+	if applied {
+		log.WithFields(log.Fields{
+			"original_id":  original,
+			"rewritten_id": replacement,
+		}).Info("affinity rewrite: session affinity id rewritten")
 	}
 }
 
