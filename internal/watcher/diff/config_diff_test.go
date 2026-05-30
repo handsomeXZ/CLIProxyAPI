@@ -229,6 +229,7 @@ func TestBuildConfigChangeDetails_FlagsAndKeys(t *testing.T) {
 		MaxRetryCredentials:    1,
 		MaxRetryInterval:       1,
 		WebsocketAuth:          false,
+		AffinityRewrite:        config.AffinityRewriteConfig{Enabled: false, Secret: "old-secret", Prefix: "old", Headers: []string{"x-session-affinity"}},
 		QuotaExceeded:          config.QuotaExceeded{SwitchProject: false, SwitchPreviewModel: false, AntigravityCredits: false},
 		ClaudeKey:              []config.ClaudeKey{{APIKey: "c1"}},
 		CodexKey:               []config.CodexKey{{APIKey: "x1"}},
@@ -253,6 +254,7 @@ func TestBuildConfigChangeDetails_FlagsAndKeys(t *testing.T) {
 		MaxRetryCredentials:    3,
 		MaxRetryInterval:       3,
 		WebsocketAuth:          true,
+		AffinityRewrite:        config.AffinityRewriteConfig{Enabled: true, Secret: "new-secret", Prefix: "new", Headers: []string{"x-session-affinity", "session_id"}},
 		QuotaExceeded:          config.QuotaExceeded{SwitchProject: true, SwitchPreviewModel: true, AntigravityCredits: true},
 		ClaudeKey: []config.ClaudeKey{
 			{APIKey: "c1", BaseURL: "http://new", ProxyURL: "http://p", Headers: map[string]string{"H": "1"}, ExcludedModels: []string{"a"}},
@@ -295,6 +297,10 @@ func TestBuildConfigChangeDetails_FlagsAndKeys(t *testing.T) {
 	expectContains(t, details, "max-retry-interval: 1 -> 3")
 	expectContains(t, details, "proxy-url: http://old-proxy -> http://new-proxy")
 	expectContains(t, details, "ws-auth: false -> true")
+	expectContains(t, details, "affinity-rewrite.enabled: false -> true")
+	expectContains(t, details, "affinity-rewrite.secret: updated")
+	expectContains(t, details, "affinity-rewrite.prefix: old -> new")
+	expectContains(t, details, "affinity-rewrite.headers: updated (1 -> 2 entries)")
 	expectContains(t, details, "force-model-prefix: false -> true")
 	expectContains(t, details, "nonstream-keepalive-interval: 0 -> 5")
 	expectContains(t, details, "quota-exceeded.switch-project: false -> true")

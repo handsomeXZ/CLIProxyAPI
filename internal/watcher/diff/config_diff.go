@@ -96,6 +96,7 @@ func BuildConfigChangeDetails(oldCfg, newCfg *config.Config) []string {
 	if oldCfg.Routing.Strategy != newCfg.Routing.Strategy {
 		changes = append(changes, fmt.Sprintf("routing.strategy: %s -> %s", oldCfg.Routing.Strategy, newCfg.Routing.Strategy))
 	}
+	changes = appendAffinityRewriteChanges(changes, oldCfg.AffinityRewrite, newCfg.AffinityRewrite)
 	if !reflect.DeepEqual(oldCfg.Payload, newCfg.Payload) {
 		changes = appendPayloadConfigChanges(changes, oldCfg.Payload, newCfg.Payload)
 	}
@@ -350,6 +351,33 @@ func appendPayloadConfigChanges(changes []string, oldPayload, newPayload config.
 	changes = appendPayloadRuleChanges(changes, "override", oldPayload.Override, newPayload.Override)
 	changes = appendPayloadRuleChanges(changes, "override-raw", oldPayload.OverrideRaw, newPayload.OverrideRaw)
 	changes = appendPayloadFilterRuleChanges(changes, "filter", oldPayload.Filter, newPayload.Filter)
+	return changes
+}
+
+func appendAffinityRewriteChanges(changes []string, oldCfg, newCfg config.AffinityRewriteConfig) []string {
+	if oldCfg.Enabled != newCfg.Enabled {
+		changes = append(changes, fmt.Sprintf("affinity-rewrite.enabled: %t -> %t", oldCfg.Enabled, newCfg.Enabled))
+	}
+	oldSecret := strings.TrimSpace(oldCfg.Secret)
+	newSecret := strings.TrimSpace(newCfg.Secret)
+	if oldSecret != newSecret {
+		switch {
+		case oldSecret == "" && newSecret != "":
+			changes = append(changes, "affinity-rewrite.secret: created")
+		case oldSecret != "" && newSecret == "":
+			changes = append(changes, "affinity-rewrite.secret: deleted")
+		default:
+			changes = append(changes, "affinity-rewrite.secret: updated")
+		}
+	}
+	oldPrefix := strings.TrimSpace(oldCfg.Prefix)
+	newPrefix := strings.TrimSpace(newCfg.Prefix)
+	if oldPrefix != newPrefix {
+		changes = append(changes, fmt.Sprintf("affinity-rewrite.prefix: %s -> %s", oldPrefix, newPrefix))
+	}
+	if !reflect.DeepEqual(config.NormalizeHeadersList(oldCfg.Headers), config.NormalizeHeadersList(newCfg.Headers)) {
+		changes = append(changes, fmt.Sprintf("affinity-rewrite.headers: updated (%d -> %d entries)", len(config.NormalizeHeadersList(oldCfg.Headers)), len(config.NormalizeHeadersList(newCfg.Headers))))
+	}
 	return changes
 }
 
