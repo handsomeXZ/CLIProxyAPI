@@ -58,8 +58,9 @@ func TestApplyAffinityRewriteLogsOriginalAndRewrittenID(t *testing.T) {
 	ApplyAffinityRewrite(target, cfg, &cliproxyauth.Auth{ID: "auth-1"}, http.Header{"X-Session-Affinity": []string{"session-1"}})
 
 	rewritten := target.Get("x-session-affinity")
+	message := "affinity rewrite: session affinity id rewritten original_id=session-1 rewritten_id=" + rewritten
 	for _, entry := range hook.AllEntries() {
-		if entry.Level != log.InfoLevel || entry.Message != "affinity rewrite: session affinity id rewritten" {
+		if entry.Level != log.InfoLevel || entry.Message != message {
 			continue
 		}
 		if entry.Data["original_id"] != "session-1" {

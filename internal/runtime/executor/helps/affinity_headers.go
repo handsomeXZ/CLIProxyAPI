@@ -45,7 +45,7 @@ func ApplyAffinityRewrite(headers http.Header, cfg *config.Config, auth *cliprox
 		log.WithFields(log.Fields{
 			"original_id":  original,
 			"rewritten_id": replacement,
-		}).Info("affinity rewrite: session affinity id rewritten")
+		}).Infof("affinity rewrite: session affinity id rewritten original_id=%s rewritten_id=%s", original, replacement)
 	}
 }
 
